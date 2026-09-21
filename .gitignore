@@ -3,5 +3,7 @@ Thumbs.db
 *.pmtiles
 node_modules/
 dist/
+packages/*/dist/
 .env
 .env.*
+*.tsbuildinfo

@@ -1,0 +1,25 @@
+{
+  "name": "pmtiles-crs",
+  "private": true,
+  "version": "0.1.0",
+  "description": "PMTiles for geographic/projected CRS (v1: EPSG:4326)",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @pmtiles-crs/tile-matrix && npm run build -w @pmtiles-crs/generate && npm run build -w @pmtiles-crs/viewer",
+    "build:matrix": "npm run build -w @pmtiles-crs/tile-matrix",
+    "test": "npm run test -w @pmtiles-crs/tile-matrix",
+    "test:watch": "npm run test:watch -w @pmtiles-crs/tile-matrix",
+    "generate": "tsx packages/generate/src/cli.ts",
+    "dev": "npm run dev -w @pmtiles-crs/viewer",
+    "postinstall": "npm run build -w @pmtiles-crs/tile-matrix"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
