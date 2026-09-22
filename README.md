@@ -60,4 +60,9 @@ npm install
 2. Implement `packages/generate/src/pipeline.ts` and wire it from `cli.ts`
 3. Implement `packages/viewer/src/pmtiles-source.ts` and add the layer in `main.ts`
 
+### Generate follow-ups (large inputs)
+
+- **Feature stream** — `AsyncIterable<Feature>` instead of loading the whole FeatureCollection (`loadGeoJson` comment: `TODO(feature-stream)`)
+- **FlatGeobuf** — `.fgb` reader for big vector data (`TODO(flatgeobuf)`); start at [flatgeobuf.org](https://flatgeobuf.org/) and the [JS docs](https://github.com/flatgeobuf/flatgeobuf/blob/master/src/ts/README.md)
+
 Copy `out/sample.pmtiles` into `packages/viewer/public/` when you have an archive to view.
