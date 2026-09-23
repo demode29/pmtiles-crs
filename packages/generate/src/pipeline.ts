@@ -1,12 +1,19 @@
 import { readFile } from "node:fs/promises";
-import type { Bounds, TileCoord, TileMatrix } from "@pmtiles-crs/tile-matrix";
+import {
+  includePosition,
+  unionBounds,
+  type Bounds,
+  type Tile,
+  type TileCoord,
+  type TileGrid,
+} from "@pmtiles-crs/tile-grid";
 import type {
+  EncodedTile,
   GeoJsonFeature,
   GeoJsonFeatureCollection,
   GeoJsonGeometry,
-} from "./geojson.js";
-
-export type { GeoJsonFeature, GeoJsonFeatureCollection, GeoJsonGeometry } from "./geojson.js";
+  PmtilesArchiveMetadata,
+} from "./types.js";
 
 const GEOMETRY_TYPES = new Set([
   "Point",
@@ -135,14 +142,114 @@ export async function loadFlatGeobuf(_path: string): Promise<GeoJsonFeatureColle
   throw new Error("TODO: loadFlatGeobuf — use GeoJSON for now (loadGeoJson)");
 }
 
+function includePositions(bounds: Bounds | null, positions: number[][]): Bounds | null {
+  return positions.reduce<Bounds | null>((next, position) => {
+    const lon = position[0];
+    const lat = position[1];
+    if (typeof lon !== "number" || typeof lat !== "number") {
+      return next;
+    }
+    return includePosition(next, lon, lat);
+  }, bounds);
+}
+
+function unionOptional(current: Bounds | null, next: Bounds | null): Bounds | null {
+  if (!next) return current;
+  if (!current) return next;
+  return unionBounds(current, next);
+}
+
+/**
+ * Geographic bbox of a geometry: [west, south, east, north].
+ * Returns null for empty / null geometry.
+ *
+ * TODO(antimeridian): plain min/max lon is wrong for geometries that cross ±180.
+ */
+export function geometryBbox(geometry: GeoJsonGeometry | null): Bounds | null {
+  if (!geometry) {
+    return null;
+  }
+
+  switch (geometry.type) {
+    case "Point": {
+      const lon = geometry.coordinates[0];
+      const lat = geometry.coordinates[1];
+      if (typeof lon !== "number" || typeof lat !== "number") {
+        return null;
+      }
+      return includePosition(null, lon, lat);
+    }
+    case "MultiPoint":
+    case "LineString":
+      return includePositions(null, geometry.coordinates);
+    case "MultiLineString":
+      return geometry.coordinates.reduce<Bounds | null>(
+        (bounds, line) => includePositions(bounds, line),
+        null,
+      );
+    case "Polygon":
+      // Rings are [outer, ...holes]. A valid hole lies inside the outer ring, so
+      // it cannot grow the bbox. Still walk every ring: a hole vertex may sit
+      // outside the outer ring, or the rings may be ordered wrong.
+      return geometry.coordinates.reduce<Bounds | null>(
+        (bounds, ring) => includePositions(bounds, ring),
+        null,
+      );
+    case "MultiPolygon":
+      // Each polygon is [outer, ...holes]; same reason as Polygon.
+      return geometry.coordinates.reduce<Bounds | null>(
+        (bounds, polygon) =>
+          polygon.reduce(
+            (next, ring) => includePositions(next, ring),
+            bounds,
+          ),
+        null,
+      );
+    case "GeometryCollection":
+      return geometry.geometries.reduce<Bounds | null>(
+        (bounds, child) => unionOptional(bounds, geometryBbox(child)),
+        null,
+      );
+  }
+}
+
+/**
+ * Bbox for a Feature. Uses GeoJSON `bbox` when present and well-formed;
+ * otherwise computes from geometry.
+ */
+export function featureBbox(feature: GeoJsonFeature): Bounds | null {
+  const bbox = feature.bbox;
+  if (
+    bbox &&
+    bbox.length >= 4 &&
+    bbox.every((n) => Number.isFinite(n)) &&
+    bbox[2] >= bbox[0] &&
+    bbox[3] >= bbox[1]
+  ) {
+    return bbox;
+  }
+
+  return geometryBbox(feature.geometry);
+}
+
+/**
+ * Union bbox of a feature array. Skips features with no geometry/bbox.
+ */
+export function featuresBbox(features: GeoJsonFeature[]): Bounds | null {
+  return features.reduce<Bounds | null>(
+    (bounds, feature) => unionOptional(bounds, featureBbox(feature)),
+    null,
+  );
+}
+
 /**
  * Features that intersect a tile (rough filter before clip).
  * TODO: implement bbox test against tileBounds.
  */
 export function featuresForTile(
-  _features: unknown,
-  _matrix: TileMatrix,
-  _tile: TileCoord,
+  _features: GeoJsonFeature[],
+  _grid: TileGrid,
+  _tile: Tile,
 ): unknown[] {
   throw new Error("TODO: featuresForTile");
 }
@@ -153,7 +260,7 @@ export function featuresForTile(
  */
 export function encodeMvt(
   _features: unknown[],
-  _matrix: TileMatrix,
+  _grid: TileGrid,
   _tile: TileCoord,
   _layerName?: string,
 ): Uint8Array {
@@ -166,13 +273,8 @@ export function encodeMvt(
  */
 export async function writePmtiles(
   _outPath: string,
-  _tiles: Array<{ tile: TileCoord; data: Uint8Array }>,
-  _metadata: {
-    crs: string;
-    tile_matrix: TileMatrix;
-    bounds: Bounds;
-    vector_layers: Array<{ id: string; fields: Record<string, string> }>;
-  },
+  _tiles: EncodedTile[],
+  _metadata: PmtilesArchiveMetadata,
 ): Promise<void> {
   throw new Error("TODO: writePmtiles");
 }

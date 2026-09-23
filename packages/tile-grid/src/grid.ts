@@ -1,18 +1,19 @@
-import type { Bounds, LonLat, TileCoord, TileMatrix } from "./types.js";
+import type { Bounds, LonLat, Tile, TileCoord, TileGrid } from "./types.js";
+import { clamp, wrap } from "./utils.js";
 
 /**
  * Width/height of one tile in CRS units at zoom z.
- * implement from matrix.bounds and 2^z (decide square vs 2:1 world).
+ * implement from grid.bounds and 2^z (decide square vs 2:1 world).
  */
-export function tileSizeAtZoom(matrix: TileMatrix, z: number): {
+export function tileSizeAtZoom(grid: TileGrid, z: number): {
   width: number;
   height: number;
 } {
-  const bounds = matrix.bounds;
+  const bounds = grid.bounds;
   const worldWidth  = bounds[2] - bounds[0];
   const worldHeight = bounds[3] - bounds[1];
 
-  const tileCountCalculated = tileCount(matrix, z);
+  const tileCountCalculated = tileCount(z);
 
   return {
     width: worldWidth / tileCountCalculated.columns, 
@@ -21,9 +22,9 @@ export function tileSizeAtZoom(matrix: TileMatrix, z: number): {
 }
 
 /**
- * Number of tiles spanning the matrix at zoom z (columns × rows).
+ * Number of tiles spanning the grid at zoom z (columns × rows).
  */
-export function tileCount(_matrix: TileMatrix, z: number): {
+export function tileCount(z: number): {
   columns: number;
   rows: number;
 } {
@@ -33,25 +34,17 @@ export function tileCount(_matrix: TileMatrix, z: number): {
   }
 }
 
-const clamp = (num: number, min: number, max: number) => Math.min(Math.max(num, min), max);
-
-/** Map a value into [min, max). JS `%` keeps the dividend sign, so -190 must be adjusted. */
-const wrap = (num: number, min: number, max: number) => {
-  const span = max - min;
-  return min + ((((num - min) % span) + span) % span);
-};
-
 /**
- * Lon/lat → tile xyz for the given matrix.
+ * Lon/lat → tile xyz for the given grid.
  */
 export function lonLatToTile(
-  matrix: TileMatrix,
+  grid: TileGrid,
   lonLat: LonLat,
   z: number,
 ): TileCoord {
-  const bounds = matrix.bounds;
+  const bounds = grid.bounds;
 
-  const tileInfo = tileSizeAtZoom(matrix, z);
+  const tileInfo = tileSizeAtZoom(grid, z);
   const west = bounds[0];
   const east = bounds[2];
   const south = bounds[1];
@@ -61,7 +54,7 @@ export function lonLatToTile(
   const lon = east - west === 360 ? wrap(lonLat[0], west, east) : clamp(lonLat[0], west, east);
   const lat = clamp(lonLat[1], south, north); //clamp lat
 
-  const tileCountInfo = tileCount(matrix, z);
+  const tileCountInfo = tileCount(z);
 
   // what if lon is 190? but is it possible? or wrap it? 
   return {
@@ -75,16 +68,16 @@ export function lonLatToTile(
 /**
  * Geographic bounds of one tile (west, south, east, north).
  */
-export function tileBounds(matrix: TileMatrix, tile: TileCoord): Bounds {
-  const bounds = matrix.bounds;
+export function tileBounds(grid: TileGrid, tile: TileCoord): Bounds {
+  const bounds = grid.bounds;
 
   const boundWest = bounds[0];
   const boundEast = bounds[2];
   const boundSouth = bounds[1];
   const boundNorth = bounds[3];
   // inverse of lon lat to tile
-  const tileInfo = tileSizeAtZoom(matrix, tile.z);
-  const tileCountInfo = tileCount(matrix, tile.z);
+  const tileInfo = tileSizeAtZoom(grid, tile.z);
+  const tileCountInfo = tileCount(tile.z);
 
   //  what is tile size in geographic?
   const tileSizeInGeoWidth = (boundEast - boundWest) / tileCountInfo.columns;
@@ -98,15 +91,26 @@ export function tileBounds(matrix: TileMatrix, tile: TileCoord): Bounds {
   return [west, south, east, north];
 }
 
+/** Attach geographic bounds to a tile index. */
+export function toTile(grid: TileGrid, tile: TileCoord): Tile {
+  return {
+    z: tile.z,
+    x: tile.x,
+    y: tile.y,
+    bounds: tileBounds(grid, tile),
+  };
+}
+
 /**
- * All tile xyz that intersect the given bounds at zoom z.
+ * All tiles that intersect the given geographic bounds at zoom z
+ * (each entry includes `bounds`).
  */
 export function tilesForBounds(
-  matrix: TileMatrix,
+  grid: TileGrid,
   bounds: Bounds,
   z: number,
-): TileCoord[] {
-  const [boundWest, boundSouth, boundEast, boundNorth] = matrix.bounds;
+): Tile[] {
+  const [boundWest, boundSouth, boundEast, boundNorth] = grid.bounds;
   const [west, south, east, north] = bounds;
 
   if (east < west || north < south) {
@@ -122,27 +126,40 @@ export function tilesForBounds(
     return [];
   }
 
-  const { width, height } = tileSizeAtZoom(matrix, z);
-  const { columns, rows } = tileCount(matrix, z);
+  const { width, height } = tileSizeAtZoom(grid, z);
+  const { columns, rows } = tileCount(z);
 
-  // Inclusive indices of tiles whose area intersects [qWest, qEast] × [qSouth, qNorth].
-  // ceil(edge) - 1 keeps an exact east/south edge from spilling into the next tile.
-  const x0 = Math.max(0, Math.floor((qWest - boundWest) / width));
-  const x1 = Math.min(columns - 1, Math.ceil((qEast - boundWest) / width) - 1);
-  const y0 = Math.max(0, Math.floor((boundNorth - qNorth) / height));
-  const y1 = Math.min(rows - 1, Math.ceil((boundNorth - qSouth) / height) - 1);
+  // A point (or a line) has zero width/height. The area formula treats the
+  // far edge as exclusive, so west === east collapses to no tiles — including
+  // a point that sits exactly on a tile boundary. Use the same index as lonLatToTile.
+  const x0 =
+    qEast === qWest
+      ? Math.min(Math.floor((qWest - boundWest) / width), columns - 1)
+      : Math.max(0, Math.floor((qWest - boundWest) / width));
+  const x1 =
+    qEast === qWest
+      ? x0
+      : Math.min(columns - 1, Math.ceil((qEast - boundWest) / width) - 1);
+  const y0 =
+    qNorth === qSouth
+      ? Math.min(Math.floor((boundNorth - qNorth) / height), rows - 1)
+      : Math.max(0, Math.floor((boundNorth - qNorth) / height));
+  const y1 =
+    qNorth === qSouth
+      ? y0
+      : Math.min(rows - 1, Math.ceil((boundNorth - qSouth) / height) - 1);
 
   if (x1 < x0 || y1 < y0) {
     return [];
   }
 
-  const tileCoords: TileCoord[] = [];
+  const tiles: Tile[] = [];
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
-      tileCoords.push({ z, x, y });
+      tiles.push(toTile(grid, { z, x, y }));
     }
   }
-  return tileCoords;
+  return tiles;
 }
 
 
@@ -150,7 +167,7 @@ export function tilesForBounds(
  * Simple global geographic grid for v1.
  * You decide the exact zoom/width rules — implement helpers against this constant.
  */
-export const WGS84_SIMPLE: TileMatrix = {
+export const WGS84_SIMPLE: TileGrid = {
   id: "WGS84_simple",
   crs: "EPSG:4326",
   tileSize: 256,

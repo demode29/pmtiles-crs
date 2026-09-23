@@ -1,10 +1,14 @@
 export type {
   Bounds,
   LonLat,
+  Tile,
   TileCoord,
-  TileMatrix,
+  TileGrid,
   PmtilesCrsMetadata,
 } from "./types.js";
+
+export { boundsIntersection, boundsOverlap, includePosition, unionBounds } from "./bounds.js";
+export { clamp, wrap } from "./utils.js";
 
 export {
   WGS84_SIMPLE,
@@ -12,5 +16,6 @@ export {
   tileCount,
   lonLatToTile,
   tileBounds,
+  toTile,
   tilesForBounds,
-} from "./matrix.js";
+} from "./grid.js";

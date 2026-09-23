@@ -7,13 +7,13 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w @pmtiles-crs/tile-matrix && npm run build -w @pmtiles-crs/generate && npm run build -w @pmtiles-crs/viewer",
-    "build:matrix": "npm run build -w @pmtiles-crs/tile-matrix",
-    "test": "npm run test -w @pmtiles-crs/tile-matrix",
-    "test:watch": "npm run test:watch -w @pmtiles-crs/tile-matrix",
+    "build": "npm run build -w @pmtiles-crs/tile-grid && npm run build -w @pmtiles-crs/generate && npm run build -w @pmtiles-crs/viewer",
+    "build:grid": "npm run build -w @pmtiles-crs/tile-grid",
+    "test": "npm run test -w @pmtiles-crs/tile-grid && npm run test -w @pmtiles-crs/generate",
+    "test:watch": "npm run test:watch -w @pmtiles-crs/tile-grid",
     "generate": "tsx packages/generate/src/cli.ts",
     "dev": "npm run dev -w @pmtiles-crs/viewer",
-    "postinstall": "npm run build -w @pmtiles-crs/tile-matrix"
+    "postinstall": "npm run build -w @pmtiles-crs/tile-grid"
   },
   "devDependencies": {
     "tsx": "^4.19.3",

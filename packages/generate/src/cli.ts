@@ -5,12 +5,12 @@
  *
  * Pipeline sketch:
  * 1. Load vector features
- * 2. For each zoom, use tilesForBounds from tile-matrix
+ * 2. For each zoom, use tilesForBounds from tile-grid
  * 3. Clip features to each tile → encode MVT
  * 4. Pack tiles into .pmtiles with PmtilesCrsMetadata
  */
 
-import { WGS84_SIMPLE } from "@pmtiles-crs/tile-matrix";
+import { WGS84_SIMPLE } from "@pmtiles-crs/tile-grid";
 import { loadGeoJson } from "./pipeline.js";
 
 function printHelp(): void {
@@ -24,7 +24,7 @@ Usage:
 
 Options:
   --input / --out           Named flags (prefer when calling tsx directly)
-  --min-zoom / --max-zoom   Optional overrides (default: matrix)
+  --min-zoom / --max-zoom   Optional overrides (default: grid)
 `);
 }
 
@@ -70,7 +70,7 @@ async function main(): Promise<void> {
     process.exit(args.help ? 0 : 1);
   }
 
-  console.log("Matrix:", WGS84_SIMPLE.id, WGS84_SIMPLE.crs);
+  console.log("Grid:", WGS84_SIMPLE.id, WGS84_SIMPLE.crs);
   console.log("Input:", args.input);
   console.log("Out:", args.out);
 
