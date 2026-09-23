@@ -8,11 +8,10 @@ export default defineConfig({
   root: ".",
   publicDir: "public",
   resolve: {
-    // Dev against tile-matrix source so you don't need a build first.
     alias: {
-      "@pmtiles-crs/tile-matrix": path.resolve(
+      "@pmtiles-crs/tile-grid": path.resolve(
         rootDir,
-        "../tile-matrix/src/index.ts",
+        "../tile-grid/src/index.ts",
       ),
     },
   },

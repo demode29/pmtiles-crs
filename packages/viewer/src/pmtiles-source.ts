@@ -1,5 +1,5 @@
 /**
- * Hook a .pmtiles archive into OpenLayers using your tile matrix.
+ * Hook a .pmtiles archive into OpenLayers using your tile grid.
  * TODO: implement with `pmtiles` PMTiles class + OL VectorTile / custom source.
  */
 export async function createPmtilesLayer(_url: string): Promise<unknown> {

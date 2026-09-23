@@ -6,19 +6,19 @@ import {
   tileCount,
   tileSizeAtZoom,
   tilesForBounds,
-} from "./matrix.js";
+} from "./grid.js";
 
-describe("tile-matrix", () => {
+describe("tile-grid", () => {
   describe("tileSizeAtZoom / tileCount", () => {
     it("z0 is 2x1 tiles of 180x180", () => {
-      expect(tileCount(WGS84_SIMPLE, 0)).toEqual({ columns: 2, rows: 1 });
+      expect(tileCount(0)).toEqual({ columns: 2, rows: 1 });
       expect(tileSizeAtZoom(WGS84_SIMPLE, 0)).toEqual({ width: 180, height: 180 });
     });
 
     it("each zoom doubles columns and rows", () => {
-      expect(tileCount(WGS84_SIMPLE, 1)).toEqual({ columns: 4, rows: 2 });
+      expect(tileCount(1)).toEqual({ columns: 4, rows: 2 });
       expect(tileSizeAtZoom(WGS84_SIMPLE, 1)).toEqual({ width: 90, height: 90 });
-      expect(tileCount(WGS84_SIMPLE, 2)).toEqual({ columns: 8, rows: 4 });
+      expect(tileCount(2)).toEqual({ columns: 8, rows: 4 });
       expect(tileSizeAtZoom(WGS84_SIMPLE, 2)).toEqual({ width: 45, height: 45 });
     });
   });
@@ -72,33 +72,40 @@ describe("tile-matrix", () => {
 
   describe("tilesForBounds", () => {
     it("covers the world at z0 with both tiles", () => {
-      expect(tilesForBounds(WGS84_SIMPLE, [-180, -90, 180, 90], 0)).toEqual([
+      const tiles = tilesForBounds(WGS84_SIMPLE, [-180, -90, 180, 90], 0);
+      expect(tiles.map(({ z, x, y }) => ({ z, x, y }))).toEqual([
         { z: 0, x: 0, y: 0 },
         { z: 0, x: 1, y: 0 },
       ]);
+      expect(tiles[0].bounds).toEqual([-180, -90, 0, 90]);
+      expect(tiles[1].bounds).toEqual([0, -90, 180, 90]);
     });
 
     it("returns every z1 tile for the world", () => {
       const tiles = tilesForBounds(WGS84_SIMPLE, [-180, -90, 180, 90], 1);
       expect(tiles).toHaveLength(8);
-      expect(tiles[0]).toEqual({ z: 1, x: 0, y: 0 });
-      expect(tiles[7]).toEqual({ z: 1, x: 3, y: 1 });
+      expect(tiles[0]).toMatchObject({ z: 1, x: 0, y: 0 });
+      expect(tiles[7]).toMatchObject({ z: 1, x: 3, y: 1 });
+      expect(tiles[0].bounds).toEqual(tileBounds(WGS84_SIMPLE, tiles[0]));
     });
 
     it("keeps an exact western hemisphere box on one z0 tile", () => {
-      expect(tilesForBounds(WGS84_SIMPLE, [-180, -90, 0, 90], 0)).toEqual([
+      const tiles = tilesForBounds(WGS84_SIMPLE, [-180, -90, 0, 90], 0);
+      expect(tiles.map(({ z, x, y }) => ({ z, x, y }))).toEqual([
         { z: 0, x: 0, y: 0 },
       ]);
     });
 
     it("returns a single tile for an interior box", () => {
-      expect(tilesForBounds(WGS84_SIMPLE, [-90, -45, -10, 45], 0)).toEqual([
+      const tiles = tilesForBounds(WGS84_SIMPLE, [-90, -45, -10, 45], 0);
+      expect(tiles.map(({ z, x, y }) => ({ z, x, y }))).toEqual([
         { z: 0, x: 0, y: 0 },
       ]);
     });
 
     it("returns both z0 tiles when the box crosses lon 0", () => {
-      expect(tilesForBounds(WGS84_SIMPLE, [-10, -10, 10, 10], 0)).toEqual([
+      const tiles = tilesForBounds(WGS84_SIMPLE, [-10, -10, 10, 10], 0);
+      expect(tiles.map(({ z, x, y }) => ({ z, x, y }))).toEqual([
         { z: 0, x: 0, y: 0 },
         { z: 0, x: 1, y: 0 },
       ]);
@@ -106,6 +113,18 @@ describe("tile-matrix", () => {
 
     it("returns no tiles for inverted bounds", () => {
       expect(tilesForBounds(WGS84_SIMPLE, [10, 10, -10, -10], 0)).toEqual([]);
+    });
+
+    it("keeps a point bbox, including one on a tile edge", () => {
+      const interior = tilesForBounds(WGS84_SIMPLE, [32.85, 39.93, 32.85, 39.93], 0);
+      expect(interior.map(({ z, x, y }) => ({ z, x, y }))).toEqual([
+        { z: 0, x: 1, y: 0 },
+      ]);
+
+      const onMeridian = tilesForBounds(WGS84_SIMPLE, [0, 0, 0, 0], 0);
+      expect(onMeridian.map(({ z, x, y }) => ({ z, x, y }))).toEqual([
+        { z: 0, x: 1, y: 0 },
+      ]);
     });
   });
 });

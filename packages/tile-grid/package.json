@@ -1,5 +1,5 @@
 {
-  "name": "@pmtiles-crs/tile-matrix",
+  "name": "@pmtiles-crs/tile-grid",
   "version": "0.1.0",
   "private": true,
   "type": "module",
